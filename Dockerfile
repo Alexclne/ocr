@@ -1,16 +1,23 @@
 FROM python:3.10-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y libgl1 libglib2.0-0
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libgl1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Set workdir
 WORKDIR /app
 
-# Copy your code
-COPY . .
+# Copy files
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-RUN pip install --no-cache-dir python-doctr[torch] opencv-python-headless
+COPY main.py .
 
-# Run the script
-CMD ["python", "main.py"]
+# Expose port
+EXPOSE 8000
+
+# Launch FastAPI with Uvicorn
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
