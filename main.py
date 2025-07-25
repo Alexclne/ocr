@@ -66,8 +66,7 @@ async def submit(request: Request, file: UploadFile = File(...)):
     image_bytes = await file.read()
     file_path = os.path.join(MEDIA_DIR, file.filename)
     with open(file_path, "wb") as f:
-        f.write(image_bytes)
-    #print(f"✅ Salvato {file.filename} con totale {totale}")    
+        f.write(image_bytes)  
     totale = extract_total(image_bytes)
     
     data_store[file.filename] = totale
@@ -88,7 +87,6 @@ async def api_ocr(file: UploadFile = File(...)):
         with open(file_path, "wb") as f:
             f.write(image_bytes)
 
-        # Salva totale
         data_store[file.filename] = totale
         with open(DATA_FILE, "w") as f:
             json.dump(data_store, f, indent=2)
@@ -97,12 +95,3 @@ async def api_ocr(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore: {str(e)}")
-        
-'''        
-        if totale:
-            return {"totale": totale}
-        else:
-            return {"totale": None, "message": "Nessun totale rilevato"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Errore: {str(e)}")
-'''
