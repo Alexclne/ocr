@@ -1,23 +1,19 @@
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 import re
 
-
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 model = ocr_predictor(pretrained=True)
 
 KEYWORDS = ["TOTAL", "TOTALE", "MONTANT", "BETRAG", "IMPORTO", "TOTALTTC", "AMOUNT", "TOTAL:", "TOT"]
 
 def extract_total(image_bytes):
-    try:
-        doc = DocumentFile.from_images(image_bytes)
-    except Exception as e:
-        raise ValueError(f"Errore nel caricamento dell'immagine: {e}")
-    
     doc = DocumentFile.from_images(image_bytes)
     result = model(doc)
     text = result.render().upper()
@@ -45,18 +41,17 @@ async def submit(request: Request, file: UploadFile = File(...)):
     totale = extract_total(image_bytes)
     return templates.TemplateResponse("index.html", {"request": request, "totale": totale})
 
-@app.post("/ocr/")
-async def ocr_endpoint(file: UploadFile = File(...)):
+@app.post("/ocr/", response_class=JSONResponse)
+async def api_ocr(file: UploadFile = File(...)):
     if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File non valido. Atteso un file immagine.")
+        raise HTTPException(status_code=400, detail="Carica un file immagine valido.")
 
     image_bytes = await file.read()
-
     try:
         totale = extract_total(image_bytes)
         if totale:
-            return JSONResponse({"totale": totale})
+            return {"totale": totale}
         else:
-            return JSONResponse({"totale": None, "message": "Nessun totale rilevato"}, status_code=200)
+            return {"totale": None, "message": "Nessun totale rilevato"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Errore durante l'elaborazione: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore: {str(e)}")
