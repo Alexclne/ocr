@@ -3,7 +3,9 @@ version: '3.8'
 services:
   ocr:
     build: .
+    container_name: ocr-service
     ports:
       - "8000:8000"
-    container_name: ocr-mock
-    #restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
