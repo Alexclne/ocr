@@ -1,31 +1,33 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, UploadFile, File, Request, HTTPException
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 from doctr.io import DocumentFile
 from doctr.models import ocr_predictor
 import re
-import io
+
 
 app = FastAPI()
-
-# Carica il modello solo una volta
+templates = Jinja2Templates(directory="templates")
 model = ocr_predictor(pretrained=True)
 
-# Parole chiave comuni in vari paesi
 KEYWORDS = ["TOTAL", "TOTALE", "MONTANT", "BETRAG", "IMPORTO", "TOTALTTC", "AMOUNT", "TOTAL:", "TOT"]
 
-def estrai_totale(image_bytes):
+def extract_total(image_bytes):
+    try:
+        doc = DocumentFile.from_images(image_bytes)
+    except Exception as e:
+        raise ValueError(f"Errore nel caricamento dell'immagine: {e}")
+    
     doc = DocumentFile.from_images(image_bytes)
     result = model(doc)
     text = result.render().upper()
 
-    # 1. Cerca keyword seguita da un numero
     for kw in KEYWORDS:
         pattern = rf"{kw}[^0-9]*([0-9]+[,.][0-9]{{2}})"
         match = re.search(pattern, text)
         if match:
             return match.group(1).replace(",", ".")
 
-    # 2. Fallback: prendi il numero più alto
     numeri = re.findall(r"([0-9]+[,.][0-9]{2})", text)
     if numeri:
         numeri_float = [float(n.replace(",", ".")) for n in numeri]
@@ -33,11 +35,15 @@ def estrai_totale(image_bytes):
 
     return None
 
-totale = estrai_totale("scontrino.jpeg")
-if totale:
-    print("✅ Totale trovato:", totale)
-else:
-    print("❌ Nessun totale rilevato")
+@app.get("/", response_class=HTMLResponse)
+async def form(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "totale": None})
+
+@app.post("/", response_class=HTMLResponse)
+async def submit(request: Request, file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    totale = extract_total(image_bytes)
+    return templates.TemplateResponse("index.html", {"request": request, "totale": totale})
 
 @app.post("/ocr/")
 async def ocr_endpoint(file: UploadFile = File(...)):
@@ -47,7 +53,7 @@ async def ocr_endpoint(file: UploadFile = File(...)):
     image_bytes = await file.read()
 
     try:
-        totale = estrai_totale(image_bytes)
+        totale = extract_total(image_bytes)
         if totale:
             return JSONResponse({"totale": totale})
         else:
