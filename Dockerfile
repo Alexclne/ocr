@@ -16,6 +16,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p /app/data/media
 COPY . .
 
+COPY ./static /app/static
+
 # Expose port
 EXPOSE 8000
 
